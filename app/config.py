@@ -23,7 +23,18 @@ class Settings(BaseSettings):
 
     @property
     def normalized_public_base_url(self) -> str:
-        url = self.PUBLIC_BASE_URL.strip().rstrip("/")
+        # 1. If explicit non-localhost PUBLIC_BASE_URL is set, use it
+        configured = self.PUBLIC_BASE_URL.strip().rstrip("/")
+        if configured and "localhost" not in configured and "127.0.0.1" not in configured:
+            url = configured
+        # 2. Render automatically injects RENDER_EXTERNAL_URL (e.g. https://my-service.onrender.com)
+        elif os.environ.get("RENDER_EXTERNAL_URL"):
+            url = os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+        elif os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
+            url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME').strip().rstrip('/')}"
+        else:
+            url = configured
+
         if not url.endswith("/a2a"):
             url = f"{url}/a2a"
         return url

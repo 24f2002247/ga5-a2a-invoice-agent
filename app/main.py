@@ -46,45 +46,74 @@ app.add_middleware(
 )
 
 
+def _is_a2a_path(path: str) -> bool:
+    return path.startswith("/a2a") or path.startswith("/tasks") or path.startswith("/message")
+
+
+@app.middleware("http")
+async def add_a2a_response_headers(request: Request, call_next):
+    response = await call_next(request)
+    if _is_a2a_path(request.url.path):
+        response.headers["A2A-Version"] = "1.0"
+    return response
+
+
 # Exception handler to return application/a2a+json for /a2a routes and avoid leaking secrets
 @app.exception_handler(HTTPException)
 async def custom_http_exception_handler(request: Request, exc: HTTPException):
-    is_a2a_route = request.url.path.startswith("/a2a")
-    media_type = "application/a2a+json" if is_a2a_route else "application/json"
+    is_a2a = _is_a2a_path(request.url.path)
+    media_type = "application/a2a+json" if is_a2a else "application/json"
     detail_msg = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
     logger.warning(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {detail_msg}")
-    content = {"error": exc.detail} if isinstance(exc.detail, str) else exc.detail
+    
+    if exc.status_code == status.HTTP_409_CONFLICT and "IDEMPOTENCY_CONFLICT" in detail_msg:
+        content = {
+            "error": "IDEMPOTENCY_CONFLICT",
+            "code": "IDEMPOTENCY_CONFLICT",
+            "detail": detail_msg
+        }
+    elif isinstance(exc.detail, str):
+        content = {"error": exc.detail, "detail": exc.detail}
+    else:
+        content = exc.detail
+
+    headers = {"A2A-Version": "1.0"} if is_a2a else {}
     return JSONResponse(
         status_code=exc.status_code,
         content=content,
-        media_type=media_type
+        media_type=media_type,
+        headers=headers
     )
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    is_a2a_route = request.url.path.startswith("/a2a")
-    media_type = "application/a2a+json" if is_a2a_route else "application/json"
+    is_a2a = _is_a2a_path(request.url.path)
+    media_type = "application/a2a+json" if is_a2a else "application/json"
     errors = exc.errors()
     # Log sanitized validation error without leaking sensitive body contents
     sanitized_errs = [{"loc": e.get("loc"), "msg": e.get("msg"), "type": e.get("type")} for e in errors]
     logger.warning(f"Validation error on {request.method} {request.url.path}: {sanitized_errs}")
+    headers = {"A2A-Version": "1.0"} if is_a2a else {}
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"error": "Invalid request schema", "details": sanitized_errs},
-        media_type=media_type
+        media_type=media_type,
+        headers=headers
     )
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    is_a2a_route = request.url.path.startswith("/a2a")
-    media_type = "application/a2a+json" if is_a2a_route else "application/json"
+    is_a2a = _is_a2a_path(request.url.path)
+    media_type = "application/a2a+json" if is_a2a else "application/json"
     logger.error(f"Internal server error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    headers = {"A2A-Version": "1.0"} if is_a2a else {}
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"error": "An internal server error occurred"},
-        media_type=media_type
+        media_type=media_type,
+        headers=headers
     )
 
 
@@ -118,9 +147,10 @@ async def agent_card_endpoint(request: Request):
 
 
 # ---------------------------------------------------------------------
-# PROTECTED A2A 1.0 ENDPOINTS
+# PROTECTED A2A 1.0 ENDPOINTS (Mounted at both /a2a and root paths)
 # ---------------------------------------------------------------------
 @app.post("/a2a/message:send")
+@app.post("/message:send")
 async def message_send_endpoint(
     request: Request,
     principal: str = Depends(verify_a2a_auth),
@@ -150,34 +180,38 @@ async def message_send_endpoint(
         principal=principal,
         db=db
     )
-    return JSONResponse(content=resp_content, media_type="application/a2a+json")
+    return JSONResponse(content=resp_content, media_type="application/a2a+json", headers={"A2A-Version": "1.0"})
 
 
 @app.get("/a2a/tasks/{task_id}")
+@app.get("/tasks/{task_id}")
 async def get_task_endpoint(
     task_id: str,
     principal: str = Depends(verify_a2a_auth),
     db: Session = Depends(get_db)
 ):
     task_content = get_task_by_id(principal=principal, task_id=task_id, db=db)
-    return JSONResponse(content=task_content, media_type="application/a2a+json")
+    return JSONResponse(content=task_content, media_type="application/a2a+json", headers={"A2A-Version": "1.0"})
 
 
 @app.get("/a2a/tasks")
 @app.get("/a2a/tasks/")
+@app.get("/tasks")
+@app.get("/tasks/")
 async def list_tasks_endpoint(
     principal: str = Depends(verify_a2a_auth),
     db: Session = Depends(get_db)
 ):
     tasks_content = list_user_tasks(principal=principal, db=db)
-    return JSONResponse(content=tasks_content, media_type="application/a2a+json")
+    return JSONResponse(content=tasks_content, media_type="application/a2a+json", headers={"A2A-Version": "1.0"})
 
 
 @app.post("/a2a/tasks/{task_id}:cancel")
+@app.post("/tasks/{task_id}:cancel")
 async def cancel_task_endpoint(
     task_id: str,
     principal: str = Depends(verify_a2a_auth),
     db: Session = Depends(get_db)
 ):
     canceled_content = cancel_task_by_id(principal=principal, task_id=task_id, db=db)
-    return JSONResponse(content=canceled_content, media_type="application/a2a+json")
+    return JSONResponse(content=canceled_content, media_type="application/a2a+json", headers={"A2A-Version": "1.0"})

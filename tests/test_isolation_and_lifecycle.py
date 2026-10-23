@@ -222,5 +222,7 @@ async def test_persistence_across_app_restart(
     async with AsyncClient(transport=transport2, base_url="http://testserver") as client2:
         r2 = await client2.get(f"/a2a/tasks/{task_id}", headers=auth_headers)
         assert r2.status_code == 200
-        assert r2.json()["task"]["id"] == task_id
-        assert r2.json()["task"]["status"]["state"] == "TASK_STATE_INPUT_REQUIRED"
+        task2_data = r2.json()
+        task2_obj = task2_data.get("task", task2_data)
+        assert task2_obj["id"] == task_id
+        assert task2_obj["status"]["state"] == "TASK_STATE_INPUT_REQUIRED"

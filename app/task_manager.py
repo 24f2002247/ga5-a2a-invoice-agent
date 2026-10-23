@@ -17,7 +17,7 @@ def get_task_by_id(principal: str, task_id: str, db: Session) -> Dict[str, Any]:
             detail="Task not found"
         )
     task_dict = json.loads(record.task_json)
-    return {"task": task_dict, **task_dict}
+    return task_dict
 
 
 def list_user_tasks(principal: str, db: Session) -> Dict[str, Any]:
@@ -56,4 +56,4 @@ def cancel_task_by_id(principal: str, task_id: str, db: Session) -> Dict[str, An
             detail="TASK_ALREADY_TERMINAL: Task completed or canceled concurrently"
         )
 
-    return {"task": task_dict, **task_dict}
+    return task_dict

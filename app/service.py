@@ -179,7 +179,7 @@ async def handle_message_send(
             results_data = part0.get("data", {})
             cont_batch_id = results_data.get("batchId")
 
-            if cont_batch_id and cont_batch_id != stored_batch_id:
+            if not cont_batch_id or cont_batch_id != stored_batch_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Batch ID mismatch: expected {stored_batch_id}, got {cont_batch_id}"
@@ -192,21 +192,14 @@ async def handle_message_send(
                     detail="TASK_CANCELED: Cannot continue a canceled task"
                 )
 
-            # Step 16: Terminal Task replay. After completed, replaying continuation returns completed task (200 OK)
-            if task_record.state == TaskState.COMPLETED.value:
-                resp_obj = {"task": task_dict}
-                msg_rec = MessageRecord(
-                    bearer_token=principal,
-                    message_id=msg_id,
-                    message_hash=msg_hash,
-                    task_id=req_task_id,
-                    response_json=json.dumps(resp_obj)
-                )
-                repo.save_message(msg_rec)
-                return resp_obj
-
             stored_proposals = {p["packageId"]: p for p in proposal_art["data"].get("proposals", [])}
             results_list = results_data.get("results", [])
+
+            if not results_list:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Continuation message must include results array"
+                )
 
             executions = []
             for res in results_list:
@@ -225,22 +218,29 @@ async def handle_message_send(
                         detail=f"Invalid outcome for package {pkg_id}: {outcome}"
                     )
 
-                # Validate actionId, action, and receiptNonce ONLY for ACCEPTED proposals
+                # Validate actionId if present (Step 13: actionId mismatch returns 400)
+                res_action_id = res.get("actionId")
+                if res_action_id and res_action_id != stored_prop["actionId"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Action ID mismatch for package {pkg_id}: expected {stored_prop['actionId']}, got {res_action_id}"
+                    )
+
+                # Validate action if present (Step 14: action mismatch returns 400)
+                res_action = res.get("action")
+                if res_action and res_action != stored_prop["action"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Action mismatch for package {pkg_id}: expected {stored_prop['action']}, got {res_action}"
+                    )
+
+                # For ACCEPTED proposals, actionId and receiptNonce must be valid
                 if outcome == "ACCEPTED":
-                    res_action_id = res.get("actionId")
                     if not res_action_id or res_action_id != stored_prop["actionId"]:
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Action ID mismatch for package {pkg_id}: expected {stored_prop['actionId']}, got {res_action_id}"
+                            detail=f"Missing or invalid actionId for accepted package {pkg_id}"
                         )
-
-                    res_action = res.get("action")
-                    if res_action and res_action != stored_prop["action"]:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Action mismatch for package {pkg_id}: expected {stored_prop['action']}, got {res_action}"
-                        )
-
                     nonce = res.get("receiptNonce")
                     if not nonce:
                         raise HTTPException(
@@ -255,6 +255,19 @@ async def handle_message_send(
                         "facts": stored_prop["facts"],
                         "evidenceRefs": stored_prop["evidenceRefs"]
                     })
+
+            # Step 16: Terminal Task replay. After completed, replaying valid continuation returns completed task (200 OK)
+            if task_record.state == TaskState.COMPLETED.value:
+                resp_obj = {"task": task_dict}
+                msg_rec = MessageRecord(
+                    bearer_token=principal,
+                    message_id=msg_id,
+                    message_hash=msg_hash,
+                    task_id=req_task_id,
+                    response_json=json.dumps(resp_obj)
+                )
+                repo.save_message(msg_rec)
+                return resp_obj
 
             # Create receipts artifact preserving proposals
             receipts_artifact = {

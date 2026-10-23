@@ -263,18 +263,45 @@ async def test_grader_exact_rejection_continuation(
     ctx_id = task1["contextId"]
     props = task1["artifacts"][0]["data"]["proposals"]
 
-    # Official grader shape: actionId 'missing_wrong' on rejected, or actionId omitted on rejected
-    results = [
+    # Test 1: actionId 'missing_wrong' must be rejected with 400 (Step 13: actionId mismatch)
+    results_bad = [
         {
             "packageId": props[0]["packageId"],
             "actionId": "missing_wrong",
-            "outcome": "REJECTED",
-            "receiptNonce": "receipt_nonce_abc"
+            "outcome": "REJECTED"
+        }
+    ]
+    msg_bad_act = {
+        "message": {
+            "messageId": "msg_rej_regress_bad_act",
+            "taskId": t_id,
+            "contextId": ctx_id,
+            "role": "ROLE_USER",
+            "parts": [
+                {
+                    "mediaType": "application/vnd.ga5.invoice-action-results+json",
+                    "data": {
+                        "batchId": "batch_rej_regress",
+                        "results": results_bad
+                    }
+                }
+            ]
+        }
+    }
+    r_bad = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg_bad_act)
+    assert r_bad.status_code == 400
+
+    # Test 2: valid rejection results with matching actionId (or omitted) completes with 200 OK and 0 executions
+    results_valid_rejection = [
+        {
+            "packageId": props[0]["packageId"],
+            "actionId": props[0]["actionId"],
+            "action": props[0]["action"],
+            "outcome": "REJECTED"
         },
         {
             "packageId": props[1]["packageId"],
-            "outcome": "REJECTED",
-            "receiptNonce": "receipt_nonce_def"
+            "outcome": "REJECTED"
         }
     ]
 
@@ -289,7 +316,7 @@ async def test_grader_exact_rejection_continuation(
                     "mediaType": "application/vnd.ga5.invoice-action-results+json",
                     "data": {
                         "batchId": "batch_rej_regress",
-                        "results": results
+                        "results": results_valid_rejection
                     }
                 }
             ]

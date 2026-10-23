@@ -22,6 +22,12 @@ async def test_missing_bearer_token(async_client: AsyncClient):
     resp = await async_client.get("/a2a/tasks", headers=headers)
     assert resp.status_code == 401
 
+    # Completely missing headers on GET /tasks and GET /a2a/tasks returns 401 (LIST_AUTH_REQUIRED)
+    resp_no_headers = await async_client.get("/a2a/tasks")
+    assert resp_no_headers.status_code == 401
+    resp_root_tasks = await async_client.get("/tasks")
+    assert resp_root_tasks.status_code == 401
+
 
 @pytest.mark.anyio
 async def test_missing_or_unsupported_a2a_version(async_client: AsyncClient, auth_headers: dict):
@@ -43,7 +49,7 @@ async def test_invalid_media_type(async_client: AsyncClient, auth_headers: dict)
     headers["Content-Type"] = "application/xml"
     body = {"message": {"messageId": "m1", "role": "ROLE_USER", "parts": []}}
     resp = await async_client.post("/a2a/message:send", headers=headers, json=body)
-    assert resp.status_code == 400
+    assert resp.status_code == 415
 
 
 @pytest.mark.anyio

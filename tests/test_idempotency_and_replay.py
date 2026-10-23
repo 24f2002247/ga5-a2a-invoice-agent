@@ -132,8 +132,10 @@ async def test_changed_content_idempotency_conflict(
     # Verify original task is unaltered
     resp_get = await async_client.get(f"/a2a/tasks/{task1['id']}", headers=auth_headers)
     assert resp_get.status_code == 200
-    assert resp_get.json()["task"]["id"] == task1["id"]
-    assert resp_get.json()["task"]["artifacts"][0]["data"]["batchId"] == "batch_c1"
+    task_res = resp_get.json()
+    task_obj = task_res.get("task", task_res)
+    assert task_obj["id"] == task1["id"]
+    assert task_obj["artifacts"][0]["data"]["batchId"] == "batch_c1"
 
 
 @pytest.mark.anyio

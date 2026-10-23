@@ -1,0 +1,41 @@
+INFO:     Started server process [8120]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59547 - "GET /healthz HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "GET /healthz HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "GET /healthz HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+2026-10-23 01:33:27,386 [WARNING] a2a_server: HTTP 409 on POST /a2a/message:send: IDEMPOTENCY_CONFLICT: Message ID previously used with different content
+INFO:     58.84.60.221:0 - "POST /a2a/message%3Asend HTTP/1.1" 409 Conflict
+INFO:     58.84.60.221:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "GET /a2a/tasks HTTP/1.1" 200 OK
+2026-10-23 01:33:27,939 [WARNING] a2a_server: HTTP 404 on GET /a2a/tasks/task_1a048099e8e54158: Task not found
+INFO:     58.84.60.221:0 - "GET /a2a/tasks/task_1a048099e8e54158 HTTP/1.1" 404 Not Found
+INFO:     58.84.60.221:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+INFO:     58.84.60.221:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+INFO:     2a06:98c0:3600::103:0 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
+2026-10-23 02:48:56,133 [WARNING] a2a_server: HTTP 400 on GET /a2a/tasks: Missing A2A-Version header (expected '1.0')
+INFO:     2a06:98c0:3600::103:0 - "GET /a2a/tasks HTTP/1.1" 400 Bad Request
+2026-10-23 02:48:56,304 [WARNING] a2a_server: HTTP 401 on POST /a2a/message:send: Missing or invalid Bearer authentication header
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 401 Unauthorized
+2026-10-23 02:48:56,453 [WARNING] a2a_server: HTTP 400 on GET /a2a/tasks: Unsupported A2A-Version header: '0.9' (expected '1.0')
+INFO:     2a06:98c0:3600::103:0 - "GET /a2a/tasks HTTP/1.1" 400 Bad Request
+2026-10-23 02:48:56,582 [WARNING] a2a_server: HTTP 400 on POST /a2a/message:send: Invalid Content-Type header (expected 'application/a2a+json')
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 400 Bad Request
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+2026-10-23 02:48:57,213 [WARNING] a2a_server: HTTP 409 on POST /a2a/message:send: IDEMPOTENCY_CONFLICT: Message ID previously used with different content
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 409 Conflict
+INFO:     2a06:98c0:3600::103:0 - "GET /a2a/tasks/task_9d1af0057796426a HTTP/1.1" 200 OK
+2026-10-23 02:48:57,532 [WARNING] a2a_server: HTTP 401 on GET /a2a/tasks/task_9d1af0057796426a: Missing or invalid Bearer authentication header
+INFO:     2a06:98c0:3600::103:0 - "GET /a2a/tasks/task_9d1af0057796426a HTTP/1.1" 401 Unauthorized
+2026-10-23 02:48:57,663 [WARNING] a2a_server: HTTP 401 on POST /a2a/tasks/task_9d1af0057796426a:cancel: Missing or invalid Bearer authentication header
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/tasks/task_9d1af0057796426a%3Acancel HTTP/1.1" 401 Unauthorized
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 200 OK
+2026-10-23 02:48:57,965 [WARNING] a2a_server: HTTP 409 on POST /a2a/message:send: TASK_ALREADY_TERMINAL: Task is already in a terminal state
+INFO:     2a06:98c0:3600::103:0 - "POST /a2a/message%3Asend HTTP/1.1" 409 Conflict

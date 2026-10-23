@@ -1,0 +1,6 @@
+{
+  "base_url": "https://efforts-cardiff-candidate-parks.trycloudflare.com",
+  "submitted_a2a_url": "https://efforts-cardiff-candidate-parks.trycloudflare.com/a2a",
+  "agent_card_url": "https://efforts-cardiff-candidate-parks.trycloudflare.com/.well-known/agent-card.json",
+  "healthz_url": "https://efforts-cardiff-candidate-parks.trycloudflare.com/healthz"
+}

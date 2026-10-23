@@ -153,13 +153,6 @@ async def handle_message_send(
                     detail="Task not found"
                 )
 
-            # If task already in terminal state
-            if task_record.state in (TaskState.COMPLETED.value, TaskState.CANCELED.value):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="TASK_ALREADY_TERMINAL: Task is already in a terminal state"
-                )
-
             # Validate context ID
             if req_context_id and task_record.context_id != req_context_id:
                 raise HTTPException(
@@ -182,7 +175,7 @@ async def handle_message_send(
                     detail="Stored task has no invoice proposal artifact"
                 )
 
-            stored_batch_id = proposal_art["data"].get("batchId")
+            stored_batch_id = proposal_art["data"].get("batchId") or task_record.batch_id
             results_data = part0.get("data", {})
             cont_batch_id = results_data.get("batchId")
 
@@ -191,6 +184,26 @@ async def handle_message_send(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Batch ID mismatch: expected {stored_batch_id}, got {cont_batch_id}"
                 )
+
+            # Step 19: Post-cancellation continuation returns 409
+            if task_record.state == TaskState.CANCELED.value:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="TASK_CANCELED: Cannot continue a canceled task"
+                )
+
+            # Step 16: Terminal Task replay. After completed, replaying continuation returns completed task (200 OK)
+            if task_record.state == TaskState.COMPLETED.value:
+                resp_obj = {"task": task_dict}
+                msg_rec = MessageRecord(
+                    bearer_token=principal,
+                    message_id=msg_id,
+                    message_hash=msg_hash,
+                    task_id=req_task_id,
+                    response_json=json.dumps(resp_obj)
+                )
+                repo.save_message(msg_rec)
+                return resp_obj
 
             stored_proposals = {p["packageId"]: p for p in proposal_art["data"].get("proposals", [])}
             results_list = results_data.get("results", [])

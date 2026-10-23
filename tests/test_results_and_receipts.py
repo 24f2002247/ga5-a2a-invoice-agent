@@ -97,12 +97,26 @@ async def test_accepted_and_rejected_receipt_results(
     # History includes both messages
     assert len(task2["history"]) == 2
 
-    # 3. Terminal task replay of continuation message
+    # 3. Terminal task replay of continuation message (same message ID)
     r2_replay = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg2)
     assert r2_replay.status_code == 200
     assert r2_replay.json()["task"]["status"]["state"] == "TASK_STATE_COMPLETED"
 
-    # 4. Terminal task replay of initial message
+    # 4. Terminal task replay of continuation message with a NEW message ID (official Step 16 battery scenario)
+    msg2_new_id = {
+        "message": {
+            "messageId": "msg_continuation_replay_new_id_002",
+            "taskId": t_id,
+            "contextId": ctx_id,
+            "role": "ROLE_USER",
+            "parts": msg2["message"]["parts"]
+        }
+    }
+    r2_new_replay = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg2_new_id)
+    assert r2_new_replay.status_code == 200
+    assert r2_new_replay.json()["task"]["status"]["state"] == "TASK_STATE_COMPLETED"
+
+    # 5. Terminal task replay of initial message
     r1_replay = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg1)
     assert r1_replay.status_code == 200
     assert r1_replay.json()["task"]["status"]["state"] == "TASK_STATE_COMPLETED"
@@ -288,4 +302,71 @@ async def test_grader_exact_rejection_continuation(
     assert comp_task["status"]["state"] == "TASK_STATE_COMPLETED"
     executions = comp_task["artifacts"][1]["data"]["executions"]
     assert len(executions) == 0
+
+
+@pytest.mark.anyio
+async def test_post_cancellation_continuation_returns_409(
+    async_client: AsyncClient,
+    auth_headers: dict,
+    sample_package_settle_invoice: dict
+):
+    """
+    Battery Step 19: Post-cancellation continuation returns HTTP 409.
+    """
+    msg1 = {
+        "message": {
+            "messageId": "msg_cancel_then_cont_01",
+            "role": "ROLE_USER",
+            "parts": [
+                {
+                    "mediaType": "application/vnd.ga5.invoice-claim-batch+json",
+                    "data": {
+                        "batchId": "batch_cancel_then_cont",
+                        "packages": [sample_package_settle_invoice]
+                    }
+                }
+            ]
+        }
+    }
+    r1 = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg1)
+    assert r1.status_code == 200
+    task1 = r1.json()["task"]
+    t_id = task1["id"]
+    ctx_id = task1["contextId"]
+    prop = task1["artifacts"][0]["data"]["proposals"][0]
+
+    # Cancel the task
+    r_cancel = await async_client.post(f"/a2a/tasks/{t_id}:cancel", headers=auth_headers)
+    assert r_cancel.status_code == 200
+    assert r_cancel.json()["status"]["state"] == "TASK_STATE_CANCELED"
+
+    # Now attempt continuation on the canceled task -> must return HTTP 409
+    msg_cont = {
+        "message": {
+            "messageId": "msg_cancel_then_cont_02",
+            "taskId": t_id,
+            "contextId": ctx_id,
+            "role": "ROLE_USER",
+            "parts": [
+                {
+                    "mediaType": "application/vnd.ga5.invoice-action-results+json",
+                    "data": {
+                        "batchId": "batch_cancel_then_cont",
+                        "results": [
+                            {
+                                "packageId": prop["packageId"],
+                                "actionId": prop["actionId"],
+                                "action": prop["action"],
+                                "outcome": "ACCEPTED",
+                                "receiptNonce": "nonce_after_cancel"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    r_cont = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg_cont)
+    assert r_cont.status_code == 409
+
 

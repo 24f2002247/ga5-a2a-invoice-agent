@@ -112,6 +112,19 @@ class TaskRepository:
         self.db.commit()
         return True
 
+    def save_message(self, message_record: MessageRecord):
+        """
+        Saves a message record for idempotency deduplication.
+        Silently ignores duplicate primary/unique keys.
+        """
+        try:
+            self.db.add(message_record)
+            self.db.commit()
+        except IntegrityError:
+            self.db.rollback()
+        except Exception:
+            self.db.rollback()
+
     def get_cached_decision(self, canonical_content_hash: str) -> Optional[DecisionCacheRecord]:
         stmt = select(DecisionCacheRecord).where(
             DecisionCacheRecord.canonical_content_hash == canonical_content_hash

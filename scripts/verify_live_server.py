@@ -167,4 +167,25 @@ r_other_get = requests.get(f"{BASE_URL}/a2a/tasks/{task_id}", headers=OTHER_HEAD
 assert r_other_get.status_code == 404
 print("User Isolation OK: Other principal cannot read User 1 task (404)")
 
+print("\n=== 7. Terminal Task Replay & Post-Completion Lifecycle ===")
+# A. Replay continuation with a new message ID (battery step 16)
+msg_cont_replay = {
+    "message": {
+        "messageId": "live_msg_cont_replay_new_002",
+        "taskId": task_id,
+        "contextId": ctx_id,
+        "role": "ROLE_USER",
+        "parts": msg_cont["message"]["parts"]
+    }
+}
+r_replay_new = requests.post(f"{BASE_URL}/a2a/message:send", headers=HEADERS, json=msg_cont_replay)
+assert r_replay_new.status_code == 200, f"Step 16 replay failed: {r_replay_new.status_code} {r_replay_new.text}"
+assert r_replay_new.json()["task"]["status"]["state"] == "TASK_STATE_COMPLETED"
+print("Terminal Replay with new messageId OK: 200 returned completed task")
+
+# B. Post-completion cancel (battery step 18)
+r_cancel_post = requests.post(f"{BASE_URL}/a2a/tasks/{task_id}:cancel", headers=HEADERS)
+assert r_cancel_post.status_code == 409, f"Post-completion cancel should return 409: {r_cancel_post.status_code}"
+print("Post-Completion Cancel OK: 409 returned")
+
 print("\n=== ALL LIVE SERVER INTEGRATION CHECKS PASSED PERFECTLY ===")

@@ -202,11 +202,26 @@ async def handle_message_send(
             stored_proposals = {p["packageId"]: p for p in proposal_art["data"].get("proposals", [])}
             results_list = results_data.get("results", [])
 
+            # Spec: "A no-op results message (empty results) on an input-required Task does not complete it."
             if not results_list:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Continuation message must include results array"
+                task_dict["history"].append(raw_message_dict)
+                task_json = json.dumps(task_dict)
+                response_json = json.dumps({"task": task_dict})
+
+                repo.update_task_json(
+                    principal=principal,
+                    task_id=req_task_id,
+                    task_json=task_json
                 )
+                msg_record = MessageRecord(
+                    bearer_token=principal,
+                    message_id=msg_id,
+                    message_hash=msg_hash,
+                    task_id=req_task_id,
+                    response_json=response_json
+                )
+                repo.save_message(msg_record)
+                return {"task": task_dict}
 
             executions = []
             for res in results_list:
@@ -241,13 +256,8 @@ async def handle_message_send(
                         detail=f"Action mismatch for package {pkg_id}: expected {stored_prop['action']}, got {res_action}"
                     )
 
-                # For ACCEPTED proposals, actionId and receiptNonce must be valid
+                # For ACCEPTED proposals, receiptNonce must be present
                 if outcome == "ACCEPTED":
-                    if not res_action_id or res_action_id != stored_prop["actionId"]:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Missing or invalid actionId for accepted package {pkg_id}"
-                        )
                     nonce = res.get("receiptNonce")
                     if not nonce:
                         raise HTTPException(

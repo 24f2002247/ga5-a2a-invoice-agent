@@ -112,6 +112,22 @@ class TaskRepository:
         self.db.commit()
         return True
 
+    def update_task_json(self, principal: str, task_id: str, task_json: str):
+        now = datetime.now(timezone.utc)
+        stmt = (
+            update(TaskRecord)
+            .where(
+                TaskRecord.task_id == task_id,
+                TaskRecord.bearer_token == principal
+            )
+            .values(
+                task_json=task_json,
+                updated_at=now
+            )
+        )
+        self.db.execute(stmt)
+        self.db.commit()
+
     def save_message(self, message_record: MessageRecord):
         """
         Saves a message record for idempotency deduplication.

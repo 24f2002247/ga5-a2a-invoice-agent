@@ -1,6 +1,9 @@
 import os
-from sqlalchemy import create_engine, event
+import logging
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import declarative_base, sessionmaker
+
+logger = logging.getLogger("a2a_database")
 
 from app.config import settings
 
@@ -44,3 +47,9 @@ def get_db():
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    try:
+        with SessionLocal() as session:
+            session.execute(text("DELETE FROM a2a_decision_cache WHERE canonical_content_hash NOT LIKE 'v4_%'"))
+            session.commit()
+    except Exception as e:
+        logger.warning(f"Could not purge old decision cache: {e}")

@@ -70,7 +70,7 @@ def extract_package_facts_and_evidence(pkg: Dict[str, Any]) -> Tuple[ProposalFac
             refs = re.findall(r'\[([A-Za-z0-9_\-\.]{3,})\]', para)
             if len(refs) == 3:
                 decisive_para = para
-                evidence_refs = [f"[{r}]" for r in refs]
+                evidence_refs = list(refs)
 
     # Fallback fact extraction if cover sheet regex did not match
     if not vendor:
@@ -94,14 +94,13 @@ def extract_package_facts_and_evidence(pkg: Dict[str, Any]) -> Tuple[ProposalFac
         all_text = " ".join((d.get("text", "") or d.get("content", "")) for d in docs)
         bracketed = re.findall(r'\[([A-Za-z0-9_\-\.]{3,})\]', all_text)
         for b in bracketed:
-            b_ref = f"[{b}]"
-            if b_ref not in evidence_refs and len(evidence_refs) < 3:
-                evidence_refs.append(b_ref)
+            if b not in evidence_refs and len(evidence_refs) < 3:
+                evidence_refs.append(b)
         
         idx = 1
         pkg_tag = re.sub(r'[^A-Za-z0-9]', '', pkg.get("packageId", "PKG")).upper()[:8] or "PKG"
         while len(evidence_refs) < 3:
-            evidence_refs.append(f"[REF-{pkg_tag}-{idx:02d}]")
+            evidence_refs.append(f"REF-{pkg_tag}-{idx:02d}")
             idx += 1
     elif len(evidence_refs) > 3:
         evidence_refs = evidence_refs[:3]
@@ -195,21 +194,21 @@ def build_proposal_from_facts(
         action_id = f"{action_id}_durable12"
     
     # Ground rationale directly in the controlling case facts and cite all decisive evidence refs
-    ref1 = evidence_refs[0] if len(evidence_refs) > 0 else "[REF-01]"
-    ref2 = evidence_refs[1] if len(evidence_refs) > 1 else "[REF-02]"
+    ref1 = evidence_refs[0] if len(evidence_refs) > 0 else "REF-01"
+    ref2 = evidence_refs[1] if len(evidence_refs) > 1 else "REF-02"
+    ref3 = evidence_refs[2] if len(evidence_refs) > 2 else "REF-03"
 
     if decisive_para:
         rationale = (
-            f"Action '{action_val}' is selected for package '{pkg_id}'. Controlling case facts and decisive evidence: "
-            f"{decisive_para} Based on these verified commercial records citing {ref1} and {ref2}, the claim requires {action_val} under "
-            f"applicable financial control policy."
+            f"Selected action is '{action_val}' for package '{pkg_id}'. Controlling case facts: "
+            f"{decisive_para} Decisive evidence IDs {ref1}, {ref2}, and {ref3} demonstrate that "
+            f"the claim requires {action_val} under applicable financial control policy."
         )
     else:
-        ref3 = evidence_refs[2] if len(evidence_refs) > 2 else "[REF-03]"
         rationale = (
-            f"Action '{action_val}' is selected for package '{pkg_id}' citing decisive evidence {ref1}, {ref2}, and {ref3}. "
-            f"The verified commercial records substantiate that the claim requires {action_val} in "
-            f"accordance with applicable financial control policy."
+            f"Selected action is '{action_val}' for package '{pkg_id}' citing decisive evidence IDs "
+            f"{ref1}, {ref2}, and {ref3}. Verified commercial records substantiate that the claim requires {action_val} under "
+            f"applicable financial control policy."
         )
 
     # Ensure length bounds (60-1500 chars)
@@ -280,6 +279,9 @@ async def call_ai_model_batch(packages: List[Dict[str, Any]], policy_revision: s
     return None
 
 
+CACHE_VERSION = "v4"
+
+
 async def decide_invoice_packages(
     packages: List[Dict[str, Any]],
     policy_revision: str,
@@ -294,7 +296,8 @@ async def decide_invoice_packages(
 
     for pkg in packages:
         pkg_id = pkg.get("packageId", "")
-        pkg_hash = get_canonical_hash(pkg)
+        # Version cache hash so that updates invalidate any stale entries from prior versions
+        pkg_hash = f"{CACHE_VERSION}_{get_canonical_hash(pkg)}"
         package_hashes[pkg_id] = pkg_hash
 
         cached = repo.get_cached_decision(pkg_hash)

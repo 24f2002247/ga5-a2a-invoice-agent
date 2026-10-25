@@ -141,7 +141,7 @@ async def test_evidence_extraction_and_rationale_validation(
     # Exactly 3 decisive evidence references
     assert len(proposal_obj.evidenceRefs) == 3
     for ref in proposal_obj.evidenceRefs:
-        assert ref.startswith("[R_") and ref.endswith("]")
+        assert ref.startswith("R_")
 
     # Rationale 60 - 1500 chars
     assert 60 <= len(proposal_obj.rationale) <= 1500

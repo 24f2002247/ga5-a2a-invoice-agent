@@ -397,3 +397,60 @@ async def test_post_cancellation_continuation_returns_409(
     assert r_cont.status_code == 409
 
 
+@pytest.mark.anyio
+async def test_noop_empty_results_continuation_does_not_complete_task(
+    async_client: AsyncClient,
+    auth_headers: dict,
+    sample_package_settle_invoice: dict
+):
+    # Initial claim batch
+    msg1 = {
+        "message": {
+            "messageId": "msg_noop_test_01",
+            "role": "ROLE_USER",
+            "parts": [
+                {
+                    "mediaType": "application/vnd.ga5.invoice-claim-batch+json",
+                    "data": {
+                        "batchId": "batch_noop",
+                        "packages": [sample_package_settle_invoice]
+                    }
+                }
+            ]
+        }
+    }
+    r1 = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg1)
+    assert r1.status_code == 200
+    task1 = r1.json()["task"]
+    t_id = task1["id"]
+    ctx_id = task1["contextId"]
+    assert task1["status"]["state"] == "TASK_STATE_INPUT_REQUIRED"
+
+    # Send a no-op results message with results: []
+    msg_noop = {
+        "message": {
+            "messageId": "msg_noop_test_02",
+            "taskId": t_id,
+            "contextId": ctx_id,
+            "role": "ROLE_USER",
+            "parts": [
+                {
+                    "mediaType": "application/vnd.ga5.invoice-action-results+json",
+                    "data": {
+                        "batchId": "batch_noop",
+                        "results": []
+                    }
+                }
+            ]
+        }
+    }
+    r2 = await async_client.post("/a2a/message:send", headers=auth_headers, json=msg_noop)
+    assert r2.status_code == 200
+    task2 = r2.json()["task"]
+    # Task must NOT complete: must remain in TASK_STATE_INPUT_REQUIRED
+    assert task2["status"]["state"] == "TASK_STATE_INPUT_REQUIRED"
+    assert len(task2["artifacts"]) == 1
+    assert task2["artifacts"][0]["mediaType"] == "application/vnd.ga5.invoice-action-proposals+json"
+
+
+

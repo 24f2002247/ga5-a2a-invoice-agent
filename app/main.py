@@ -172,7 +172,13 @@ async def message_send_endpoint(
         )
 
     raw_msg_dict = raw_body["message"]
-    req_data = SendMessageRequest(**raw_body)
+    try:
+        req_data = SendMessageRequest(**raw_body)
+    except Exception as ex:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid request schema: {ex}"
+        )
 
     resp_content = await handle_message_send(
         request_data=req_data,

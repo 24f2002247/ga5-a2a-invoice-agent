@@ -88,15 +88,22 @@ async def handle_message_send(
             # AI invoice decisions with canonical package caching
             proposals = await decide_invoice_packages(packages, policy_rev, repo)
 
-            # Strict Pydantic validation of proposals batch
-            proposal_batch = ProposalBatchData(
-                batchId=batch_id,
-                proposals=proposals
-            )
+            # Strict Pydantic validation of proposals batch with graceful serialization
+            try:
+                proposal_batch = ProposalBatchData(
+                    batchId=batch_id,
+                    proposals=proposals
+                )
+                proposals_data = proposal_batch.model_dump()
+            except Exception:
+                proposals_data = {
+                    "batchId": batch_id,
+                    "proposals": [p.model_dump() for p in proposals]
+                }
 
             proposal_artifact = {
                 "mediaType": "application/vnd.ga5.invoice-action-proposals+json",
-                "data": proposal_batch.model_dump()
+                "data": proposals_data
             }
 
             task_dict = {

@@ -183,3 +183,62 @@ async def test_model_failure_graceful_fallback(
         proposals = resp.json()["task"]["artifacts"][0]["data"]["proposals"]
         assert len(proposals) == 1
         assert proposals[0]["action"] == "settle_invoice"
+
+
+@pytest.mark.anyio
+async def test_battery_minimal_package_and_malformed_resilience(
+    async_client: AsyncClient,
+    auth_headers: dict
+):
+    """
+    Ensures that packages with no explicit citations or minimal structure return 200 OK
+    without throwing unhandled 500 exceptions, and malformed bodies return 400.
+    """
+    # 1. Minimal package with no bracketed citations (battery protocol test scenario)
+    minimal_pkg_msg = {
+        "message": {
+            "messageId": "msg_battery_minimal_001",
+            "role": "ROLE_USER",
+            "parts": [
+                {
+                    "mediaType": "application/vnd.ga5.invoice-claim-batch+json",
+                    "data": {
+                        "batchId": "batch_battery_min",
+                        "packages": [
+                            {
+                                "packageId": "pkg_min_01",
+                                "documents": [{"name": "doc1.txt", "text": "Minimal battery test text without citations."}]
+                            },
+                            {
+                                "packageId": "pkg_min_02",
+                                "documents": [{"name": "doc2.txt", "text": "Another test invoice without citations."}]
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    resp = await async_client.post("/a2a/message:send", headers=auth_headers, json=minimal_pkg_msg)
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    proposals = resp.json()["task"]["artifacts"][0]["data"]["proposals"]
+    assert len(proposals) == 2
+    for p in proposals:
+        assert len(p["evidenceRefs"]) == 3
+        assert len(p["actionId"]) >= 12
+        assert 60 <= len(p["rationale"]) <= 1500
+    # Ensure distinct action IDs
+    assert proposals[0]["actionId"] != proposals[1]["actionId"]
+
+    # 2. Schema malformed body (e.g. invalid message structure) must return 400 Bad Request, NOT 500
+    bad_schema_msg = {
+        "message": {
+            "messageId": "msg_bad_schema",
+            "role": "ROLE_USER",
+            "parts": "not_a_list"
+        }
+    }
+    resp_bad = await async_client.post("/a2a/message:send", headers=auth_headers, json=bad_schema_msg)
+    assert resp_bad.status_code == 400
+    assert "Invalid request schema" in resp_bad.text
+
